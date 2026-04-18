@@ -343,6 +343,38 @@ def test_url_param_unescaped_default_form_data() -> None:
         assert cache.url_param("bar", "O'Malley", escape_result=False) == "O'Malley"
 
 
+def test_url_param_escaped_query_string() -> None:
+    """
+    Test that the ``url_param`` macro applies dialect-based escaping to values
+    sourced from URL query parameters (regression test for SQL injection via
+    ``escape_result`` being ignored on the URL query path).
+    """
+    with current_app.test_request_context(query_string={"foo": "O'Brien"}):
+        cache = ExtraCache(dialect=dialect())
+        assert cache.url_param("foo") == "O''Brien"
+
+
+def test_url_param_unescaped_query_string() -> None:
+    """
+    Test that the ``url_param`` macro returns the raw URL query parameter when
+    ``escape_result=False`` is passed.
+    """
+    with current_app.test_request_context(query_string={"foo": "O'Brien"}):
+        cache = ExtraCache(dialect=dialect())
+        assert cache.url_param("foo", escape_result=False) == "O'Brien"
+
+
+def test_url_param_escaped_query_string_injection() -> None:
+    """
+    Regression test: a crafted URL query parameter designed to break out of a
+    SQL string literal (e.g. ``' OR '1'='1``) must have its single quotes
+    escaped when ``escape_result`` is enabled (the default).
+    """
+    with current_app.test_request_context(query_string={"id": "' OR '1'='1"}):
+        cache = ExtraCache(dialect=dialect())
+        assert cache.url_param("id") == "'' OR ''1''=''1"
+
+
 def test_safe_proxy_primitive() -> None:
     """
     Test the ``safe_proxy`` helper with a function returning a ``str``.
