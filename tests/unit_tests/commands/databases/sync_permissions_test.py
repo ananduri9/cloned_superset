@@ -28,7 +28,10 @@ from superset.commands.database.exceptions import (
     MissingOAuth2TokenError,
     UserNotFoundInSessionError,
 )
-from superset.commands.database.sync_permissions import SyncPermissionsCommand
+from superset.commands.database.sync_permissions import (
+    sync_database_permissions_task,
+    SyncPermissionsCommand,
+)
 from superset.db_engine_specs.base import GenericDBException
 from superset.exceptions import OAuth2RedirectError
 from superset.extensions import security_manager
@@ -409,3 +412,75 @@ def test_sync_permissions_command_rename_db_in_perms(
     assert (
         mock_chart.schema_perm == f"[{database_with_catalog.name}].[catalog1].[schema1]"
     )
+
+
+def test_sync_database_permissions_task_reraises_on_failure(
+    mocker: MockerFixture,
+) -> None:
+    """
+    Regression test for GH#64.
+
+    The Celery task must propagate exceptions so that failures surface as
+    Celery task FAILURE states rather than being silently swallowed and
+    reported as SUCCESS.
+    """
+    user_mock = MagicMock(id=1)
+    mocker.patch(
+        "superset.commands.database.sync_permissions.security_manager."
+        "get_user_by_username",
+        return_value=user_mock,
+    )
+    mocker.patch(
+        "superset.commands.database.sync_permissions.DatabaseDAO.find_by_id",
+        return_value=MagicMock(),
+    )
+    sync_mock = mocker.patch.object(
+        SyncPermissionsCommand,
+        "sync_database_permissions",
+        side_effect=RuntimeError("boom"),
+    )
+    logger_mock = mocker.patch("superset.commands.database.sync_permissions.logger")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        sync_database_permissions_task(1, "admin", "old_name")
+
+    sync_mock.assert_called_once()
+    logger_mock.error.assert_called_once()
+
+
+def test_sync_database_permissions_task_reraises_when_user_missing(
+    mocker: MockerFixture,
+) -> None:
+    """
+    The task should also propagate ``UserNotFoundInSessionError`` rather than
+    swallowing it.
+    """
+    mocker.patch(
+        "superset.commands.database.sync_permissions.security_manager."
+        "get_user_by_username",
+        return_value=None,
+    )
+
+    with pytest.raises(UserNotFoundInSessionError):
+        sync_database_permissions_task(1, "missing_user", "old_name")
+
+
+def test_sync_database_permissions_task_reraises_when_db_missing(
+    mocker: MockerFixture,
+) -> None:
+    """
+    The task should also propagate ``DatabaseNotFoundError`` rather than
+    swallowing it.
+    """
+    mocker.patch(
+        "superset.commands.database.sync_permissions.security_manager."
+        "get_user_by_username",
+        return_value=MagicMock(id=1),
+    )
+    mocker.patch(
+        "superset.commands.database.sync_permissions.DatabaseDAO.find_by_id",
+        return_value=None,
+    )
+
+    with pytest.raises(DatabaseNotFoundError):
+        sync_database_permissions_task(1, "admin", "old_name")

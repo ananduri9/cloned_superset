@@ -337,3 +337,7 @@ def sync_database_permissions_task(
                 database_id,
                 exc_info=True,
             )
+            # Re-raise so Celery marks the task as FAILURE and operators are
+            # alerted via monitoring; silently swallowing exceptions causes the
+            # task to report SUCCESS while permissions remain out of sync.
+            raise
