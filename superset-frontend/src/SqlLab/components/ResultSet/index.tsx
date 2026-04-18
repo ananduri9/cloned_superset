@@ -293,26 +293,34 @@ const ResultSet = ({
     const openInNewWindow = clickEvent.metaKey;
     logAction(LOG_ACTIONS_SQLLAB_CREATE_CHART, {});
     if (results?.query_id) {
-      const key = await postFormData(results.query_id, 'query', {
-        ...EXPLORE_CHART_DEFAULT,
-        datasource: `${results.query_id}__query`,
+      try {
+        const key = await postFormData(results.query_id, 'query', {
+          ...EXPLORE_CHART_DEFAULT,
+          datasource: `${results.query_id}__query`,
 
-        all_columns: results.columns.map(column => column.column_name),
-      });
-      const force = false;
-      const includeAppRoot = openInNewWindow;
-      const url = mountExploreUrl(
-        'base',
-        {
-          [URL_PARAMS.formDataKey.name]: key,
-        },
-        force,
-        includeAppRoot,
-      );
-      if (openInNewWindow) {
-        window.open(url, '_blank', 'noreferrer');
-      } else {
-        history.push(url);
+          all_columns: results.columns.map(column => column.column_name),
+        });
+        const force = false;
+        const includeAppRoot = openInNewWindow;
+        const url = mountExploreUrl(
+          'base',
+          {
+            [URL_PARAMS.formDataKey.name]: key,
+          },
+          force,
+          includeAppRoot,
+        );
+        if (openInNewWindow) {
+          window.open(url, '_blank', 'noreferrer');
+        } else {
+          history.push(url);
+        }
+      } catch {
+        dispatch(
+          addDangerToast(
+            t('Failed to create chart from query results. Please try again.'),
+          ),
+        );
       }
     } else {
       addDangerToast(t('Unable to create chart without a query id.'));
