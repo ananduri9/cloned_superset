@@ -30,6 +30,7 @@ import thunk from 'redux-thunk';
 import fetchMock from 'fetch-mock';
 import { setupAGGridModules } from '@superset-ui/core/components/ThemedAgGridReact';
 import ResultSet from 'src/SqlLab/components/ResultSet';
+import * as formDataUtils from 'src/explore/exploreUtils/formData';
 import * as getBootstrapData from 'src/utils/getBootstrapData';
 import {
   cachedQuery,
@@ -977,6 +978,63 @@ describe('ResultSet', () => {
       ).toBeInTheDocument();
     });
     mockIsFeatureEnabled.mockReset();
+  });
+
+  test('shows a danger toast and does not navigate when postFormData fails on explore click', async () => {
+    const postFormDataSpy = jest
+      .spyOn(formDataUtils, 'postFormData')
+      .mockRejectedValue(new Error('network error'));
+
+    const query = {
+      ...queries[0],
+      results: {
+        ...queries[0].results,
+        query_id: 123,
+        columns: queries[0].results?.columns ?? [],
+        selected_columns: queries[0].results?.selected_columns ?? [],
+        data: queries[0].results?.data ?? [],
+      },
+    };
+    const store = mockStore({
+      ...initialState,
+      user,
+      sqlLab: {
+        ...initialState.sqlLab,
+        queries: {
+          [query.id]: query,
+        },
+      },
+    });
+
+    const { getByTestId } = setup(
+      {
+        ...mockedProps,
+        database: {
+          allows_virtual_table_explore: true,
+          allows_subquery: true,
+        },
+      },
+      store,
+    );
+
+    const exploreButton = getByTestId('explore-results-button');
+    fireEvent.click(exploreButton);
+
+    await waitFor(() => {
+      const dangerToast = store
+        .getActions()
+        .find(
+          action =>
+            action.type === 'ADD_TOAST' &&
+            action.payload?.toastType === 'DANGER_TOAST' &&
+            typeof action.payload?.text === 'string' &&
+            action.payload.text.includes('Failed to create chart'),
+        );
+      expect(dangerToast).toBeDefined();
+    });
+
+    expect(postFormDataSpy).toHaveBeenCalledTimes(1);
+    postFormDataSpy.mockRestore();
   });
 
   test('renders contributed toolbar action in results slot', async () => {
