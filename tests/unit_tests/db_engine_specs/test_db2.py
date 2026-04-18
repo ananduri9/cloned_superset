@@ -83,6 +83,27 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
     ]
 
 
+def test_get_prequeries_escapes_schema_quotes(mocker: MockerFixture) -> None:
+    """
+    Ensure schema names containing double quotes are safely escaped so they
+    cannot break out of the quoted identifier and inject SQL.
+
+    Regression test for https://github.com/ananduri9/cloned_superset/issues/68.
+    """
+    from superset.db_engine_specs.db2 import Db2EngineSpec
+
+    database = mocker.MagicMock()
+
+    malicious_schema = '"; DROP TABLE users; --'
+    assert Db2EngineSpec.get_prequeries(database, schema=malicious_schema) == [
+        'set current_schema """; DROP TABLE users; --"'
+    ]
+
+    assert Db2EngineSpec.get_prequeries(database, schema='a"b') == [
+        'set current_schema "a""b"'
+    ]
+
+
 @pytest.mark.parametrize(
     ("grain", "expected_expression"),
     [

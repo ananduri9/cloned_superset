@@ -162,4 +162,10 @@ class Db2EngineSpec(BaseEngineSpec):
         be anything, and we would have to block users from running any queries
         referencing tables without an explicit schema.
         """
-        return [f'set current_schema "{schema}"'] if schema else []
+        if not schema:
+            return []
+        # Escape embedded double quotes per the SQL standard (doubling them) so
+        # that a schema name containing `"` cannot break out of the quoted
+        # identifier context and inject arbitrary SQL.
+        safe_schema = schema.replace('"', '""')
+        return [f'set current_schema "{safe_schema}"']
