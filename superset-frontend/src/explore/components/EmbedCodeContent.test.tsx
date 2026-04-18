@@ -18,7 +18,7 @@
  */
 import { isValidElement } from 'react';
 import fetchMock from 'fetch-mock';
-import { render, screen } from 'spec/helpers/testing-library';
+import { render, screen, waitFor } from 'spec/helpers/testing-library';
 import EmbedCodeContent from 'src/explore/components/EmbedCodeContent';
 
 const url = 'http://localhost/explore/p/100';
@@ -50,5 +50,33 @@ describe('EmbedCodeButton', () => {
         exact: false,
       }),
     ).toBeVisible();
+  });
+
+  test('regenerates embed URL when formData changes', async () => {
+    const permalinkMatcher = 'glob:*/api/v1/explore/permalink';
+
+    const { rerender } = render(<EmbedCodeContent formData={mockFormData} />, {
+      useRedux: true,
+    });
+
+    expect(
+      await screen.findByText(`src="${url}?standalone=1&height=400"`, {
+        exact: false,
+      }),
+    ).toBeVisible();
+
+    const callsBeforeUpdate =
+      fetchMock.callHistory.calls(permalinkMatcher).length;
+    expect(callsBeforeUpdate).toBeGreaterThan(0);
+
+    rerender(
+      <EmbedCodeContent formData={{ ...mockFormData, viz_type: 'bar' }} />,
+    );
+
+    await waitFor(() => {
+      expect(
+        fetchMock.callHistory.calls(permalinkMatcher).length,
+      ).toBeGreaterThan(callsBeforeUpdate);
+    });
   });
 });
