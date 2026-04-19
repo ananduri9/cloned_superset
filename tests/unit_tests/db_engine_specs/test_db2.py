@@ -85,21 +85,21 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
 
 def test_get_prequeries_escapes_double_quotes(mocker: MockerFixture) -> None:
     """
-    Schema names containing double-quote characters must have the quotes
-    doubled so a malicious schema value cannot break out of the quoted
-    identifier and inject arbitrary SQL.
+    Test that ``get_prequeries`` safely escapes embedded double-quote characters
+    in the schema name to prevent SQL injection via the double-quoted identifier
+    syntax.
     """
     from superset.db_engine_specs.db2 import Db2EngineSpec
 
     database = mocker.MagicMock()
 
-    assert Db2EngineSpec.get_prequeries(database, schema='foo"bar') == [
-        'set current_schema "foo""bar"'
-    ]
+    assert Db2EngineSpec.get_prequeries(
+        database,
+        schema='"; DROP TABLE users; --',
+    ) == ['set current_schema """; DROP TABLE users; --"']
 
-    malicious = '"; DROP TABLE users; --'
-    assert Db2EngineSpec.get_prequeries(database, schema=malicious) == [
-        'set current_schema """; DROP TABLE users; --"'
+    assert Db2EngineSpec.get_prequeries(database, schema='a"b"c') == [
+        'set current_schema "a""b""c"'
     ]
 
 

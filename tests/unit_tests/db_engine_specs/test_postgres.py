@@ -151,23 +151,22 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
 
 def test_get_prequeries_escapes_double_quotes(mocker: MockerFixture) -> None:
     """
-    Schema names containing double-quote characters must have the quotes
-    doubled, per the SQL standard, so that a malicious schema name cannot
-    break out of the quoted identifier and inject arbitrary SQL.
+    Test that ``get_prequeries`` safely escapes embedded double-quote characters
+    in the schema name to prevent SQL injection via the PostgreSQL
+    double-quoted identifier syntax.
     """
     database = mocker.MagicMock()
 
-    # A schema name with an embedded double quote is preserved as a single
-    # valid quoted identifier (quotes are doubled, not terminated).
-    assert spec.get_prequeries(database, schema='foo"bar') == [
-        'set search_path = "foo""bar"'
-    ]
+    # A schema containing a double quote must have that quote doubled so it
+    # cannot break out of the identifier context.
+    assert spec.get_prequeries(
+        database,
+        schema='"; DROP TABLE users; --',
+    ) == ['set search_path = """; DROP TABLE users; --"']
 
-    # An attacker-controlled schema that attempts to inject a second
-    # statement is contained inside a single quoted identifier.
-    malicious = '"; DROP TABLE users; --'
-    assert spec.get_prequeries(database, schema=malicious) == [
-        'set search_path = """; DROP TABLE users; --"'
+    # Multiple double quotes should each be doubled.
+    assert spec.get_prequeries(database, schema='a"b"c') == [
+        'set search_path = "a""b""c"'
     ]
 
 

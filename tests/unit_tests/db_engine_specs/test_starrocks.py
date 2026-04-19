@@ -170,6 +170,23 @@ def test_impersonation_username(mocker: MockerFixture) -> None:
     ]
 
 
+def test_impersonation_username_escapes_double_quotes(mocker: MockerFixture) -> None:
+    """
+    Test that ``get_prequeries`` safely escapes embedded double-quote characters
+    in the impersonated username to prevent SQL injection via the double-quoted
+    identifier syntax.
+    """
+    from superset.db_engine_specs.starrocks import StarRocksEngineSpec
+
+    database = mocker.MagicMock()
+    database.impersonate_user = True
+    database.get_effective_user.return_value = '"; DROP TABLE users; --'
+
+    assert StarRocksEngineSpec.get_prequeries(database) == [
+        'EXECUTE AS """; DROP TABLE users; --" WITH NO REVERT;'
+    ]
+
+
 def test_impersonation_disabled(mocker: MockerFixture) -> None:
     """
     Test that impersonation is not applied when the feature is disabled in
@@ -224,8 +241,8 @@ def test_get_catalog_names(mocker: MockerFixture) -> None:
     # StarRocks returns rows with keys: ['Catalog', 'Type', 'Comment']
     mock_row_1 = mocker.MagicMock()
     mock_row_1.keys.return_value = ["Catalog", "Type", "Comment"]
-    mock_row_1.__getitem__ = (
-        lambda self, key: "default_catalog" if key == "Catalog" else None
+    mock_row_1.__getitem__ = lambda self, key: (
+        "default_catalog" if key == "Catalog" else None
     )
 
     mock_row_2 = mocker.MagicMock()

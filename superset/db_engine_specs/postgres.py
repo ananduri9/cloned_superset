@@ -696,9 +696,8 @@ class PostgresEngineSpec(BasicParametersMixin, PostgresBaseEngineSpec):
         """
         if not schema:
             return []
-        # Escape embedded double quotes by doubling them per SQL standard,
-        # so a schema name containing `"` cannot break out of the identifier
-        # and inject arbitrary SQL.
+        # Double any embedded double-quote characters so the schema cannot break
+        # out of the quoted identifier and inject SQL.
         safe_schema = schema.replace('"', '""')
         return [f'set search_path = "{safe_schema}"']
 
