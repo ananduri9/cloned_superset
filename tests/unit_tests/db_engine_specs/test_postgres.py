@@ -149,6 +149,27 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
     assert spec.get_prequeries(database, schema="test") == ['set search_path = "test"']
 
 
+def test_get_prequeries_escapes_double_quotes(mocker: MockerFixture) -> None:
+    """
+    Test that ``get_prequeries`` safely escapes embedded double-quote characters
+    in the schema name to prevent SQL injection via the PostgreSQL
+    double-quoted identifier syntax.
+    """
+    database = mocker.MagicMock()
+
+    # A schema containing a double quote must have that quote doubled so it
+    # cannot break out of the identifier context.
+    assert spec.get_prequeries(
+        database,
+        schema='"; DROP TABLE users; --',
+    ) == ['set search_path = """; DROP TABLE users; --"']
+
+    # Multiple double quotes should each be doubled.
+    assert spec.get_prequeries(database, schema='a"b"c') == [
+        'set search_path = "a""b""c"'
+    ]
+
+
 def test_get_default_schema_for_query(mocker: MockerFixture) -> None:
     """
     Test the ``get_default_schema_for_query`` method.
