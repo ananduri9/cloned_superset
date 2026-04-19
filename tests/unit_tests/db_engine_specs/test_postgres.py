@@ -149,6 +149,28 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
     assert spec.get_prequeries(database, schema="test") == ['set search_path = "test"']
 
 
+def test_get_prequeries_escapes_double_quotes(mocker: MockerFixture) -> None:
+    """
+    Schema names containing double-quote characters must have the quotes
+    doubled, per the SQL standard, so that a malicious schema name cannot
+    break out of the quoted identifier and inject arbitrary SQL.
+    """
+    database = mocker.MagicMock()
+
+    # A schema name with an embedded double quote is preserved as a single
+    # valid quoted identifier (quotes are doubled, not terminated).
+    assert spec.get_prequeries(database, schema='foo"bar') == [
+        'set search_path = "foo""bar"'
+    ]
+
+    # An attacker-controlled schema that attempts to inject a second
+    # statement is contained inside a single quoted identifier.
+    malicious = '"; DROP TABLE users; --'
+    assert spec.get_prequeries(database, schema=malicious) == [
+        'set search_path = """; DROP TABLE users; --"'
+    ]
+
+
 def test_get_default_schema_for_query(mocker: MockerFixture) -> None:
     """
     Test the ``get_default_schema_for_query`` method.
