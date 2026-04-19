@@ -413,6 +413,9 @@ class StarRocksEngineSpec(MySQLEngineSpec):
             username = database.get_effective_user(database.url_object)
 
             if username:
-                return [f'EXECUTE AS "{username}" WITH NO REVERT;']
+                # Double any embedded double-quote characters so the username
+                # cannot break out of the quoted identifier and inject SQL.
+                safe_username = username.replace('"', '""')
+                return [f'EXECUTE AS "{safe_username}" WITH NO REVERT;']
 
         return []

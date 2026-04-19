@@ -83,6 +83,26 @@ def test_get_prequeries(mocker: MockerFixture) -> None:
     ]
 
 
+def test_get_prequeries_escapes_double_quotes(mocker: MockerFixture) -> None:
+    """
+    Test that ``get_prequeries`` safely escapes embedded double-quote characters
+    in the schema name to prevent SQL injection via the double-quoted identifier
+    syntax.
+    """
+    from superset.db_engine_specs.db2 import Db2EngineSpec
+
+    database = mocker.MagicMock()
+
+    assert Db2EngineSpec.get_prequeries(
+        database,
+        schema='"; DROP TABLE users; --',
+    ) == ['set current_schema """; DROP TABLE users; --"']
+
+    assert Db2EngineSpec.get_prequeries(database, schema='a"b"c') == [
+        'set current_schema "a""b""c"'
+    ]
+
+
 @pytest.mark.parametrize(
     ("grain", "expected_expression"),
     [
